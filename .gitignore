@@ -1,0 +1,13 @@
+venv/
+.venv/
+.venv-1/
+flipkart_product_recommender.egg-info
+__pycache__/
+*.pyc
+
+logs/
+*.log
+.env
+
+.vscode/
+*.egg-info/
