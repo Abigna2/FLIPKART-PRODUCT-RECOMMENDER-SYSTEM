@@ -42,6 +42,20 @@ class RAGChainBuilder:
             search_kwargs={"k": 5}
         )
 
+        # DEBUG: Print retrieved documents in terminal
+        print("\n========== RETRIEVED PRODUCT REVIEWS ==========")
+
+        docs = retriever.invoke(
+            "Suggest me some great headphones"
+        )
+
+        for i, doc in enumerate(docs, 1):
+            print(f"\nDocument {i}")
+            print("Metadata:", doc.metadata)
+            print("Content:", doc.page_content)
+
+        print("\n========== END OF RETRIEVED REVIEWS ==========\n")
+
         # Rewrite follow-up questions into standalone questions
         context_prompt = ChatPromptTemplate.from_messages([
             (
