@@ -44,10 +44,13 @@ class RAGChainBuilder:
 
         # DEBUG: Print retrieved documents in terminal
         print("\n========== RETRIEVED PRODUCT REVIEWS ==========")
-
+        print("DEBUG: Starting document retrieval...", flush=True)
+        
         docs = retriever.invoke(
             "Suggest me some great headphones"
         )
+
+        print(f"DEBUG: Retrieved {len(docs)} documents", flush=True)
 
         for i, doc in enumerate(docs, 1):
             print(f"\nDocument {i}")
