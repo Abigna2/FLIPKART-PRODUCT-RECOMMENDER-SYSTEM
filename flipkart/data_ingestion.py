@@ -52,14 +52,19 @@ class DataIngestor:
 
 
 # 7. Execute ingestion only when this file is run directly
-if __name__ == "__main__":
 
-    print("Starting data ingestion...")
+if __name__ == "__main__":
+    print("Starting data cleanup...")
 
     ingestor = DataIngestor()
 
-    print("DataIngestor initialized.")
+    # STEP 1: Remove all existing records (1350 duplicates included)
+    print("Clearing existing Astra DB collection...")
+    ingestor.vstore.clear()
+    print("Collection cleared!")
 
+    # STEP 2: Load the original CSV and ingest it once
+    print("Uploading original 450 reviews...")
     vstore = ingestor.ingest(load_existing=False)
 
-    print("Data ingestion completed successfully.")
+    print("Data cleanup completed!")
