@@ -73,18 +73,19 @@ class DataIngestor:
 
         return self.vstore
 
-
 if __name__ == "__main__":
 
     print("Starting data ingestion...")
 
     ingestor = DataIngestor()
 
-    # WARNING: Clears the entire collection
-    print("Clearing existing Astra DB collection...")
-    ingestor.vstore.clear()
+    # Change this to True only when you want to rebuild the collection
+    CLEAR_COLLECTION = False
 
-    print("Collection cleared!")
+    if CLEAR_COLLECTION:
+        print("Clearing existing Astra DB collection...")
+        ingestor.vstore.clear()
+        print("Collection cleared!")
 
     # Ingest both datasets
     vstore = ingestor.ingest(load_existing=False)
