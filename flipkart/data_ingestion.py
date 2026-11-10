@@ -1,3 +1,4 @@
+
 from pathlib import Path
 
 from langchain_astradb import AstraDBVectorStore
@@ -11,7 +12,7 @@ class DataIngestor:
 
     def __init__(self):
 
-        # 1. Load the Hugging Face embedding model locally
+        # 1. Load embedding model
         self.embedding = HuggingFaceEmbeddings(
             model_name=Config.EMBEDDING_MODEL
         )
@@ -27,44 +28,65 @@ class DataIngestor:
 
     def ingest(self, load_existing=True):
 
-        # 3. If an existing vector store is requested, return it
         if load_existing:
             return self.vstore
 
-        # 4. Locate the CSV file
-        csv_path = (
-            Path(__file__).resolve().parent.parent
-            / "data"
-            / "flipkart_product_review.csv"
+        # 3. Locate both CSV files
+        data_path = Path(__file__).resolve().parent.parent / "data"
+
+        review_csv = data_path / "flipkart_product_review_cleaned.csv"
+        catalog_csv = data_path / "flipkard.csv"
+
+        # 4. Convert both datasets into Documents
+        converter = DataConvertor(
+            str(review_csv),
+            str(catalog_csv)
         )
 
-        # 5. Convert CSV data into LangChain Documents
-        docs = DataConvertor(str(csv_path)).convert()
+        docs = converter.convert()
 
         print("Total documents created:", len(docs))
 
-        # 6. Upload documents and embeddings to Astra DB
-        ids = self.vstore.add_documents(docs)
+        # 5. Upload documents in batches
+        batch_size = 500
 
-        print("Total documents uploaded:", len(ids))
+        total_uploaded = 0
+
+        for start in range(0, len(docs), batch_size):
+
+            batch = docs[start:start + batch_size]
+
+            ids = [doc.id for doc in batch]
+
+            self.vstore.add_documents(
+                documents=batch,
+                ids=ids
+            )
+
+            total_uploaded += len(batch)
+
+            print(
+                f"Uploaded {total_uploaded}/{len(docs)} documents"
+            )
+
+        print("Total documents uploaded:", total_uploaded)
 
         return self.vstore
 
 
-# 7. Execute ingestion only when this file is run directly
-
 if __name__ == "__main__":
-    print("Starting data cleanup...")
+
+    print("Starting data ingestion...")
 
     ingestor = DataIngestor()
 
-    # STEP 1: Remove all existing records (1350 duplicates included)
+    # WARNING: Clears the entire collection
     print("Clearing existing Astra DB collection...")
     ingestor.vstore.clear()
+
     print("Collection cleared!")
 
-    # STEP 2: Load the original CSV and ingest it once
-    print("Uploading original 450 reviews...")
+    # Ingest both datasets
     vstore = ingestor.ingest(load_existing=False)
 
-    print("Data cleanup completed!")
+    print("Data ingestion completed successfully!")
