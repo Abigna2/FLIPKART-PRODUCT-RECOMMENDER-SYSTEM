@@ -1,4 +1,4 @@
-
+import argparse
 from pathlib import Path
 
 from langchain_astradb import AstraDBVectorStore
@@ -6,6 +6,21 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 from flipkart.config import Config
 from flipkart.data_convertor import DataConvertor
+
+# Stores the index of the next document to upload, so a re-run resumes automatically.
+PROGRESS_FILE = Path(__file__).resolve().parent / "ingest_progress.txt"
+BATCH_SIZE = 500
+
+
+def read_progress() -> int:
+    try:
+        return int(PROGRESS_FILE.read_text().strip())
+    except (FileNotFoundError, ValueError):
+        return 0
+
+
+def write_progress(next_index: int) -> None:
+    PROGRESS_FILE.write_text(str(next_index))
 
 
 class DataIngestor:
@@ -26,7 +41,7 @@ class DataIngestor:
             namespace=Config.ASTRA_DB_KEYSPACE
         )
 
-    def ingest(self, load_existing=True):
+    def ingest(self, load_existing=True, start_from=0):
 
         if load_existing:
             return self.vstore
@@ -44,18 +59,21 @@ class DataIngestor:
         )
 
         docs = converter.convert()
+        total_docs = len(docs)
 
-        print("Total documents created:", len(docs))
+        print("Total documents created:", total_docs)
 
-        # 5. Upload documents in batches
-        batch_size = 500
+        if start_from >= total_docs:
+            print("Nothing left to upload (start_from >= total documents).")
+            return self.vstore
 
-        total_uploaded = 0
+        if start_from > 0:
+            print(f"Resuming from document index {start_from}")
 
-        for start in range(0, len(docs), batch_size):
+        # 5. Upload documents in batches, saving progress after each one
+        for start in range(start_from, total_docs, BATCH_SIZE):
 
-            batch = docs[start:start + batch_size]
-
+            batch = docs[start:start + BATCH_SIZE]
             ids = [doc.id for doc in batch]
 
             self.vstore.add_documents(
@@ -63,31 +81,50 @@ class DataIngestor:
                 ids=ids
             )
 
-            total_uploaded += len(batch)
+            next_index = start + len(batch)
+            write_progress(next_index)
 
-            print(
-                f"Uploaded {total_uploaded}/{len(docs)} documents"
-            )
+            print(f"Uploaded {next_index}/{total_docs} documents")
 
-        print("Total documents uploaded:", total_uploaded)
+        print("Total documents uploaded:", total_docs)
 
         return self.vstore
 
+
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--start-from",
+        type=int,
+        default=None,
+        help="Document index to resume from. Overrides the progress file.",
+    )
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="Clear the Astra DB collection and restart from 0.",
+    )
+    args = parser.parse_args()
 
     print("Starting data ingestion...")
 
     ingestor = DataIngestor()
 
-    # Change this to True only when you want to rebuild the collection
-    CLEAR_COLLECTION = False
-
-    if CLEAR_COLLECTION:
+    if args.clear:
         print("Clearing existing Astra DB collection...")
         ingestor.vstore.clear()
+        PROGRESS_FILE.unlink(missing_ok=True)
         print("Collection cleared!")
 
-    # Ingest both datasets
-    vstore = ingestor.ingest(load_existing=False)
+    # Priority: --start-from, then the progress file, then 0
+    if args.start_from is not None:
+        start_from = args.start_from
+    else:
+        start_from = read_progress()
+
+    ingestor.ingest(load_existing=False, start_from=start_from)
 
     print("Data ingestion completed successfully!")
+
+    
